@@ -1,67 +1,6 @@
 import os
 from collections import defaultdict
 
-# local function main()
-#   local requiredOptions = {
-#     "train_src",
-#     "train_tgt",
-#     "train_par",
-#     "valid_src",
-#     "valid_tgt",
-#     "valid_par",
-#     "save_data"
-#   }
-#
-#   onmt.utils.Opt.init(opt, requiredOptions)
-#
-#   local data = {}
-#
-#   data.dicts = {}
-#   data.dicts.src = initVocabulary('source', opt.train_src, opt.src_vocab,
-#                                   opt.src_vocab_size, opt.features_vocabs_prefix)
-#   data.dicts.tgt = initVocabulary('target', opt.train_tgt, opt.tgt_vocab,
-#                                   opt.tgt_vocab_size, opt.features_vocabs_prefix)
-#   data.dicts.par = initVocabulary('prgrph', opt.train_par, opt.par_vocab,
-#                                   opt.par_vocab_size, opt.features_vocabs_prefix)
-#
-#   print('Preparing training data...')
-#   data.train = {}
-#   data.train.src, data.train.tgt, data.train.par = makeData(opt.train_src, opt.train_tgt, opt.train_par,
-#                                             data.dicts.src, data.dicts.tgt, data.dicts.par)
-#   print('')
-#
-#   print('Preparing validation data...')
-#   data.valid = {}
-#   data.valid.src, data.valid.tgt, data.valid.par = makeData(opt.valid_src, opt.valid_tgt, opt.valid_par,
-#                                             data.dicts.src, data.dicts.tgt, data.dicts.par)
-#   print('')
-#
-#   if opt.src_vocab:len() == 0 then
-#     saveVocabulary('source', data.dicts.src.words, opt.save_data .. '.src.dict')
-#   end
-#
-#   if opt.tgt_vocab:len() == 0 then
-#     saveVocabulary('target', data.dicts.tgt.words, opt.save_data .. '.tgt.dict')
-#   end
-#
-#   if opt.par_vocab:len() == 0 then
-#     saveVocabulary('prgrph', data.dicts.par.words, opt.save_data .. '.par.dict')
-#   end
-#
-#   if opt.features_vocabs_prefix:len() == 0 then
-#     saveFeaturesVocabularies('source', data.dicts.src.features, opt.save_data)
-#     saveFeaturesVocabularies('target', data.dicts.tgt.features, opt.save_data)
-#     saveFeaturesVocabularies('prgrph', data.dicts.par.features, opt.save_data)
-#   end
-#
-#   print('Saving data to \'' .. opt.save_data .. '-train.t7\'...')
-#   torch.save(opt.save_data .. '-train.t7', data, 'binary', false)
-#
-# end
-#
-# main()
-
-
 class Dictionary(object):
     def __init__(self):
         self.word2idx = {}
@@ -105,24 +44,49 @@ class Dictionary(object):
 
 
 class Corpus(object):
-    def __init__(self, path, maxlen, vocab_size=11000, lowercase=False):
-        self.dictionary = Dictionary()
-        self.maxlen = maxlen
+    def __init__(self, path, sent_maxlen=500, par_maxlen=2000, src_vocab_size=50000, tgt_vocab_size=28000, par_vocab_size=50000, lowercase=False):
+        self.src_dictionary = Dictionary()
+        self.tgt_dictionary = Dictionary()
+        self.par_dictionary = Dictionary()
+
         self.lowercase = lowercase
-        self.vocab_size = vocab_size
-        self.train_path = os.path.join(path, 'train.txt')
-        self.test_path = os.path.join(path, 'test.txt')
-        self.valid_path = os.path.join(path, 'valid.txt')
+        self.sent_maxlen = sent_maxlen
+        self.par_maxlen = par_maxlen
+
+        self.src_vocab_size = src_vocab_size
+        self.tgt_vocab_size = tgt_vocab_size
+        self.par_vocab_size = par_vocab_size
+
+        self.train_src_path = os.path.join(path, 'src-train.txt')
+        self.train_tgt_path = os.path.join(path, 'tgt-train.txt')
+        self.train_par_path = os.path.join(path, 'para-train.txt')
+        self.valid_src_path = os.path.join(path, 'src-dev.txt')
+        self.valid_tgt_path = os.path.join(path, 'tgt-dev.txt')
+        self.valid_par_path = os.path.join(path, 'para-dev.txt')
+        self.test_src_path  = os.path.join(path, 'src-test.txt')
+        self.test_tgt_path  = os.path.join(path, 'tgt-test.txt')
+        self.test_par_path  = os.path.join(path, 'para-test.txt')
+
         # make the vocabulary from training set
-        self.make_vocab()
+        self.src_dictionary = self.make_vocab(self.train_src_path, self.src_vocab_size)
+        self.tgt_dictionary = self.make_vocab(self.train_tgt_path, self.tgt_vocab_size)
+        self.par_dictionary = self.make_vocab(self.train_par_path, self.par_vocab_size)
 
-        self.train = self.tokenize(self.train_path)
-        self.test = self.tokenize(self.test_path)
+        self.train_src = self.tokenize(self.train_src_path, self.src_dictionary, self.sent_maxlen)
+        self.train_tgt = self.tokenize(self.train_tgt_path, self.tgt_dictionary, self.sent_maxlen)
+        self.train_para = self.tokenize(self.train_par_path, self.par_dictionary, self.par_maxlen)
+        self.valid_src = self.tokenize(self.valid_src_path, self.src_dictionary, self.sent_maxlen)
+        self.valid_tgt = self.tokenize(self.valid_tgt_path, self.tgt_dictionary, self.sent_maxlen)
+        self.valid_para = self.tokenize(self.valid_par_path, self.par_dictionary, self.par_maxlen)
+        #self.train = self.tokenize(self.train_path)
+        # self.test = self.tokenize(self.test_path)
 
-    def make_vocab(self):
-        assert os.path.exists(self.train_path)
+    def make_vocab(self, path, vocab_size):
+        assert os.path.exists(path)
+
+        dictionary = Dictionary()
         # Add words to the dictionary
-        with open(self.train_path, 'r') as f:
+        with open(path, 'r') as f:
             for line in f:
                 if self.lowercase:
                     # -1 to get rid of \n character
@@ -130,12 +94,13 @@ class Corpus(object):
                 else:
                     words = line[:-1].split(" ")
                 for word in words:
-                    self.dictionary.add_word(word)
+                    dictionary.add_word(word)
 
         # prune the vocabulary
-        self.dictionary.prune_vocab(k=self.vocab_size, cnt=False)
+        dictionary.prune_vocab(k=vocab_size, cnt=False)
+        return dictionary
 
-    def tokenize(self, path):
+    def tokenize(self, path, dictionary, maxlen=30):
         """Tokenizes a text file."""
         dropped = 0
         with open(path, 'r') as f:
@@ -147,13 +112,13 @@ class Corpus(object):
                     words = line[:-1].lower().strip().split(" ")
                 else:
                     words = line[:-1].strip().split(" ")
-                if len(words) > self.maxlen:
+                if len(words) > maxlen:
                     dropped += 1
                     continue
                 words = ['<sos>'] + words
                 words += ['<eos>']
                 # vectorize
-                vocab = self.dictionary.word2idx
+                vocab = dictionary.word2idx
                 unk_idx = vocab['<oov>']
                 indices = [vocab[w] if w in vocab else unk_idx for w in words]
                 lines.append(indices)
@@ -161,3 +126,17 @@ class Corpus(object):
         print("Number of sentences dropped from {}: {} out of {} total".
               format(path, dropped, linecount))
         return lines
+
+
+if __name__ == '__main__':
+
+    #TODO: Use a ConfigParser to parse data paths specified via INI config
+    # parser = argparse.ArgumentParser(description='Preprocess data for neural question generation')
+    # parser.add_argument('--config', type=str, default='./config-preprocess', help='Configuration file containing data paths')
+    # if not os.path.exists(parser.config):
+    #     print('Please provide a valid configuration path!')
+    #     exit()
+    # parse_config(config)
+    import pdb;pdb.set_trace();
+
+    corpus = Corpus(path='/home/sneha/Documents/dev/neural-question-generation/data/processed/')
