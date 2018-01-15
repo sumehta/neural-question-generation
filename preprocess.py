@@ -1,6 +1,7 @@
 import os
 from collections import defaultdict
 
+
 class Dictionary(object):
     def __init__(self):
         self.word2idx = {}
@@ -131,12 +132,4 @@ class Corpus(object):
 if __name__ == '__main__':
 
     #TODO: Use a ConfigParser to parse data paths specified via INI config
-    # parser = argparse.ArgumentParser(description='Preprocess data for neural question generation')
-    # parser.add_argument('--config', type=str, default='./config-preprocess', help='Configuration file containing data paths')
-    # if not os.path.exists(parser.config):
-    #     print('Please provide a valid configuration path!')
-    #     exit()
-    # parse_config(config)
-    import pdb;pdb.set_trace();
-
     corpus = Corpus(path='/home/sneha/Documents/dev/neural-question-generation/data/processed/')
